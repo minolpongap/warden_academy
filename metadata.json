@@ -1,0 +1,6 @@
+{
+  "name": "Warden Academy PNG",
+  "description": "Offline training app on the functions, powers and duties of a Mining Warden under the Mining Act 1992 (Papua New Guinea).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
