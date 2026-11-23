@@ -1,0 +1,1186 @@
+PART 3 of 4 — Warden Academy PNG. Create each file below at the exact path, with the exact content.
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/WelcomeScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.PNG_PROVINCES
+import pg.wardenacademy.data.db.Trainee
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.Avatar
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+
+@Composable
+fun WelcomeScreen(vm: AppViewModel, onSignedIn: () -> Unit) {
+    val trainees by vm.trainees.collectAsState()
+    var name by remember { mutableStateOf("") }
+    var staffId by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var toDelete by remember { mutableStateOf<Trainee?>(null) }
+
+    WardenScaffold(title = vm.course.title) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text("Mining Warden Training", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "Learn the functions, powers and duties of a Mining Warden under the Mining Act 1992, " +
+                        "test yourself after each module, and climb the leaderboard.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (trainees.isNotEmpty()) {
+                item { Text("Continue as", style = MaterialTheme.typography.titleMedium) }
+                items(trainees, key = { it.id }) { t ->
+                    SectionCard(Modifier.clickable { vm.select(t.id); onSignedIn() }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Avatar(t.name)
+                            Spacer(Modifier.width(12.dp))
+                            androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                                Text(t.name, fontWeight = FontWeight.SemiBold)
+                                Text("${t.staffId} • ${t.province}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            IconButton(onClick = { toDelete = t }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Remove trainee")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SectionCard {
+                    Text("New trainee", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = name, onValueChange = { name = it; error = null },
+                        label = { Text("Full name") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = staffId, onValueChange = { staffId = it; error = null },
+                        label = { Text("Staff / Trainee ID") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ProvincePicker(province) { province = it; error = null }
+                    error?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            vm.register(name, staffId, province) { err ->
+                                if (err == null) onSignedIn() else error = err
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Start training") }
+                }
+            }
+        }
+    }
+
+    toDelete?.let { t ->
+        AlertDialog(
+            onDismissRequest = { toDelete = null },
+            title = { Text("Remove ${t.name}?") },
+            text = { Text("This permanently deletes this trainee's progress and leaderboard points from this device.") },
+            confirmButton = {
+                TextButton(onClick = { vm.deleteTrainee(t); toDelete = null }) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun ProvincePicker(value: String, onPick: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedTextField(
+            value = value, onValueChange = {}, readOnly = true,
+            label = { Text("Province") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        // Transparent overlay so a tap anywhere on the field opens the menu.
+        Box(Modifier.matchParentSize().clickable { expanded = true })
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PNG_PROVINCES.forEach { p ->
+                DropdownMenuItem(text = { Text(p) }, onClick = { onPick(p); expanded = false })
+            }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/HomeScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.domain.ModuleProgress
+import pg.wardenacademy.domain.Scoring
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.Pill
+import pg.wardenacademy.ui.components.RankHeader
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+import pg.wardenacademy.ui.theme.Success
+
+@Composable
+fun HomeScreen(vm: AppViewModel, onOpenModule: (String) -> Unit) {
+    val stats by vm.currentStats.collectAsState()
+    val progress by vm.moduleProgress.collectAsState()
+
+    WardenScaffold(title = "Training Modules", tabScreen = true) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            stats?.let { s -> item { RankHeader(s) } }
+            item {
+                Text(
+                    "Pass each module quiz (${Scoring.PASS_PERCENT}%+) to unlock the next one.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            items(progress, key = { it.module.id }) { mp ->
+                ModuleCard(mp) { if (mp.unlocked) onOpenModule(mp.module.id) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModuleCard(mp: ModuleProgress, onClick: () -> Unit) {
+    val m = mp.module
+    SectionCard(
+        Modifier
+            .alpha(if (mp.unlocked) 1f else 0.55f)
+            .clickable(enabled = mp.unlocked, onClick = onClick)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = when {
+                    !mp.unlocked -> Icons.Filled.Lock
+                    mp.passed -> Icons.Filled.CheckCircle
+                    else -> Icons.Filled.PlayCircle
+                },
+                contentDescription = null,
+                tint = when {
+                    mp.passed -> Success
+                    mp.unlocked -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.outline
+                }
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("MODULE ${m.number} • ${m.sections}", style = MaterialTheme.typography.labelSmall)
+                Text(m.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(m.summary, style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("${m.lessons.size} lessons", MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.onSurface)
+            Pill("${m.quiz.size} questions", MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.onSurface)
+        }
+        if (mp.attempts > 0) {
+            Spacer(Modifier.height(6.dp))
+            Pill(
+                "Best ${mp.bestPercent}% • ${mp.bestPoints} pts • ${mp.attempts} attempt(s)",
+                MaterialTheme.colorScheme.secondaryContainer,
+                MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/ModuleScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.domain.Scoring
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.BulletList
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+import pg.wardenacademy.ui.components.formatSeconds
+
+@Composable
+fun ModuleScreen(vm: AppViewModel, moduleId: String, onBack: () -> Unit, onStartQuiz: () -> Unit) {
+    val module = vm.course.modules.firstOrNull { it.id == moduleId } ?: return
+    val progress by vm.moduleProgress.collectAsState()
+    val mp = progress.firstOrNull { it.module.id == moduleId }
+
+    WardenScaffold(title = "Module ${module.number}", onBack = onBack) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(module.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Mining Act 1992 • ${module.sections}", style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                SectionCard(container = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text("Learning objectives", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    BulletList(module.objectives)
+                }
+            }
+            itemsIndexed(module.lessons) { i, lesson ->
+                SectionCard {
+                    Text("Lesson ${i + 1}", style = MaterialTheme.typography.labelSmall)
+                    Text(lesson.heading, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    lesson.reference?.let {
+                        Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (lesson.body.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(lesson.body, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (lesson.bullets.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        BulletList(lesson.bullets)
+                    }
+                    lesson.note?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text("💡 $it", style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
+                    }
+                }
+            }
+            item {
+                SectionCard(container = MaterialTheme.colorScheme.primaryContainer) {
+                    Text("Key points to remember", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    BulletList(module.keyPoints)
+                }
+            }
+            module.tokPisin?.let { tp ->
+                item {
+                    SectionCard {
+                        Text("Long Tok Pisin", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(tp, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+                    }
+                }
+            }
+            item {
+                SectionCard {
+                    Text("Module quiz", fontWeight = FontWeight.Bold)
+                    Text(
+                        "${module.quiz.size} questions • ${formatSeconds(Scoring.timeLimitFor(module.quiz.size))} time limit • " +
+                            "pass mark ${Scoring.PASS_PERCENT}%",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (mp != null && mp.attempts > 0) {
+                        Text(
+                            "Attempts: ${mp.attempts} • Best: ${mp.bestPercent}% (${mp.bestPoints} pts)" +
+                                if (mp.passed) " • PASSED" else "",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = onStartQuiz, modifier = Modifier.fillMaxWidth()) {
+                        Text(if ((mp?.attempts ?: 0) > 0) "Retake quiz" else "Start quiz")
+                    }
+                }
+            }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/QuizScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.WardenApp
+import pg.wardenacademy.domain.Scoring
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.QuizUiState
+import pg.wardenacademy.ui.QuizController
+import pg.wardenacademy.ui.Screen
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+import pg.wardenacademy.ui.components.formatSeconds
+import pg.wardenacademy.ui.theme.Danger
+import pg.wardenacademy.ui.theme.Success
+
+@Composable
+fun QuizScreen(
+    app: WardenApp,
+    vm: AppViewModel,
+    quiz: Screen.Quiz,
+    onExit: () -> Unit,
+    onLeaderboard: () -> Unit
+) {
+    val traineeId = vm.currentId.collectAsState().value ?: return
+    val module = vm.course.modules.firstOrNull { it.id == quiz.id } ?: return
+    // Scope ends when this screen leaves composition, which cancels the timer.
+    val scope = rememberCoroutineScope()
+    val quizVm = remember(quiz) { QuizController(app.store, scope, traineeId, module) }
+    val state by quizVm.state.collectAsState()
+    var confirmExit by remember { mutableStateOf(false) }
+    var reviewing by remember { mutableStateOf(false) }
+
+    BackHandler { if (state.finished) onExit() else confirmExit = true }
+
+    WardenScaffold(
+        title = if (state.finished) "Results • Module ${module.number}" else "Quiz • Module ${module.number}",
+        onBack = { if (state.finished) onExit() else confirmExit = true }
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                state.finished && reviewing -> ReviewContent(state) { reviewing = false }
+
+                state.finished -> ResultContent(
+                    state = state,
+                    onReview = { reviewing = true },
+                    onRetake = { reviewing = false; quizVm.start() },
+                    onBackToModules = onExit,
+                    onLeaderboard = onLeaderboard
+                )
+
+                else -> QuestionContent(
+                    state = state,
+                    onSelect = quizVm::select,
+                    onCheck = quizVm::check,
+                    onNext = quizVm::next
+                )
+            }
+        }
+    }
+
+    if (confirmExit) {
+        AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            title = { Text("Leave the quiz?") },
+            text = { Text("Your answers so far will be lost and this attempt won't be recorded.") },
+            confirmButton = { TextButton(onClick = { confirmExit = false; onExit() }) { Text("Leave") } },
+            dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("Keep going") } }
+        )
+    }
+}
+
+@Composable
+private fun QuestionContent(
+    state: QuizUiState,
+    onSelect: (Int) -> Unit,
+    onCheck: () -> Unit,
+    onNext: () -> Unit
+) {
+    val item = state.current ?: return
+    val isChecked = state.index in state.checked
+    val chosen = state.selected[state.index]
+    val lowTime = state.secondsLeft <= 30
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Question ${state.index + 1} of ${state.items.size}",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.Filled.Timer, contentDescription = "Time left", tint = if (lowTime) Danger else MaterialTheme.colorScheme.onSurface)
+            Text(
+                " ${formatSeconds(state.secondsLeft)}",
+                color = if (lowTime) Danger else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        LinearProgressIndicator(
+            progress = { (state.index + 1).toFloat() / state.items.size },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(item.question.prompt, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+
+        item.options.forEachIndexed { i, option ->
+            val border = when {
+                isChecked && i == item.correctIndex -> Success
+                isChecked && i == chosen -> Danger
+                i == chosen -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outlineVariant
+            }
+            val container = when {
+                isChecked && i == item.correctIndex -> Success.copy(alpha = 0.12f)
+                isChecked && i == chosen -> Danger.copy(alpha = 0.12f)
+                i == chosen -> MaterialTheme.colorScheme.primaryContainer
+                else -> Color.Transparent
+            }
+            OutlinedCard(
+                onClick = { onSelect(i) },
+                enabled = !isChecked,
+                border = BorderStroke(2.dp, border),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = container,
+                    disabledContainerColor = container,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("${'A' + i}.  $option", modifier = Modifier.padding(14.dp))
+            }
+        }
+
+        if (isChecked) {
+            val correct = chosen == item.correctIndex
+            SectionCard(container = (if (correct) Success else Danger).copy(alpha = 0.10f)) {
+                Text(
+                    if (correct) "✅ Correct" else "❌ Not quite. The answer is ${'A' + item.correctIndex}.",
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(item.question.explanation, style = MaterialTheme.typography.bodyMedium)
+                item.question.reference?.let {
+                    Text("Reference: $it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
+                Text(if (state.index == state.items.lastIndex) "Finish quiz" else "Next question")
+            }
+        } else {
+            Button(onClick = onCheck, enabled = chosen != null, modifier = Modifier.fillMaxWidth()) {
+                Text("Check answer")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultContent(
+    state: QuizUiState,
+    onReview: () -> Unit,
+    onRetake: () -> Unit,
+    onBackToModules: () -> Unit,
+    onLeaderboard: () -> Unit
+) {
+    val r = state.result ?: return
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(if (r.passed) "🎉" else "📘", style = MaterialTheme.typography.displayMedium)
+        Text(
+            if (r.passed) "Module passed!" else "Not yet. Keep studying.",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        if (state.timedOut) Text("Time ran out. Unanswered questions were marked wrong.", color = Danger)
+        Text(
+            "${state.correctCount}/${state.items.size} correct • ${r.percent}%  (pass mark ${Scoring.PASS_PERCENT}%)",
+            textAlign = TextAlign.Center
+        )
+        Text("Attempt #${state.attemptNumber}", style = MaterialTheme.typography.labelMedium)
+
+        SectionCard {
+            Text("Points earned", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            r.breakdown.forEach { (label, pts) ->
+                Row(Modifier.fillMaxWidth()) {
+                    Text(label, modifier = Modifier.weight(1f))
+                    Text("+$pts", fontWeight = FontWeight.SemiBold)
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Text("Total", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                Text("${r.totalPoints}", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Only your best attempt per module counts toward the leaderboard.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        Button(onClick = onReview, modifier = Modifier.fillMaxWidth()) { Text("Review answers") }
+        OutlinedButton(onClick = onRetake, modifier = Modifier.fillMaxWidth()) { Text("Retake quiz") }
+        OutlinedButton(onClick = onLeaderboard, modifier = Modifier.fillMaxWidth()) { Text("View leaderboard") }
+        TextButton(onClick = onBackToModules) { Text("Back to module") }
+    }
+}
+
+@Composable
+private fun ReviewContent(state: QuizUiState, onDone: () -> Unit) {
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        itemsIndexed(state.items) { i, item ->
+            val chosen = state.selected[i]
+            val correct = chosen == item.correctIndex
+            SectionCard(container = (if (correct) Success else Danger).copy(alpha = 0.10f)) {
+                Text("Q${i + 1}. ${item.question.prompt}", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text("Your answer: ${chosen?.let { item.options[it] } ?: "No answer"}",
+                    color = if (correct) Success else Danger)
+                if (!correct) Text("Correct answer: ${item.options[item.correctIndex]}", color = Success)
+                Spacer(Modifier.height(4.dp))
+                Text(item.question.explanation, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item { Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Back to results") } }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/LeaderboardScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import android.content.Intent
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.domain.TraineeStats
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.Avatar
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LeaderboardScreen(vm: AppViewModel) {
+    val board by vm.leaderboard.collectAsState()
+    val me by vm.currentId.collectAsState()
+    var province by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    val provinces = board.map { it.trainee.province }.distinct().sorted()
+    val shown = if (province == null) board
+    else board.filter { it.trainee.province == province }
+        .mapIndexed { i, s -> s.copy(position = i + 1) }
+
+    WardenScaffold(
+        title = "Leaderboard",
+        tabScreen = true,
+        actions = {
+            IconButton(onClick = {
+                val text = buildString {
+                    appendLine("Warden Academy PNG: Leaderboard${province?.let { " ($it)" } ?: ""}")
+                    shown.take(20).forEach {
+                        appendLine("${it.position}. ${it.trainee.name}: ${it.totalPoints} pts, ${it.rank.title}, ${it.modulesPassed}/${it.totalModules} modules")
+                    }
+                }
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                context.startActivity(Intent.createChooser(send, "Share leaderboard"))
+            }) { Icon(Icons.Filled.Share, contentDescription = "Share leaderboard") }
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (provinces.size > 1) {
+                item {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(selected = province == null, onClick = { province = null }, label = { Text("All") })
+                        provinces.forEach { p ->
+                            FilterChip(selected = province == p, onClick = { province = p }, label = { Text(p) })
+                        }
+                    }
+                }
+            }
+            if (shown.isEmpty()) {
+                item { Text("No trainees yet. Complete a quiz to appear here.") }
+            }
+            items(shown, key = { it.trainee.id }) { s -> LeaderRow(s, isMe = s.trainee.id == me) }
+        }
+    }
+}
+
+@Composable
+private fun LeaderRow(s: TraineeStats, isMe: Boolean) {
+    val medal = when (s.position) { 1 -> "🥇"; 2 -> "🥈"; 3 -> "🥉"; else -> "#${s.position}" }
+    SectionCard(
+        container = if (isMe) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(medal, style = MaterialTheme.typography.titleLarge, modifier = Modifier.widthIn(min = 44.dp))
+            Avatar(s.trainee.name)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(s.trainee.name + if (isMe) " (you)" else "", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${s.rank.title} • ${s.modulesPassed}/${s.totalModules} modules • ${s.badges.size} badges",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(s.trainee.province, style = MaterialTheme.typography.labelSmall)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${s.totalPoints}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("pts", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/GlossaryScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+
+@Composable
+fun GlossaryScreen(vm: AppViewModel) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val terms = vm.course.glossary
+        .filter { query.isBlank() || it.term.contains(query, true) || it.definition.contains(query, true) }
+        .sortedBy { it.term }
+
+    WardenScaffold(title = "Glossary", tabScreen = true) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    placeholder = { Text("Search terms") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            items(terms, key = { it.term }) { t ->
+                SectionCard {
+                    Text(t.term, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text(t.definition, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/ProfileScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.draw.alpha
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.domain.Badge
+import pg.wardenacademy.domain.Rank
+import pg.wardenacademy.domain.Scoring
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.RankHeader
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+import pg.wardenacademy.ui.theme.Danger
+import pg.wardenacademy.ui.theme.Success
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun ProfileScreen(
+    vm: AppViewModel,
+    onCertificate: () -> Unit,
+    onAbout: () -> Unit,
+    onSwitchTrainee: () -> Unit
+) {
+    val stats by vm.currentStats.collectAsState()
+    val attempts by vm.myAttempts.collectAsState()
+    val s = stats
+    val titles = vm.course.modules.associate { it.id to "Module ${it.number}" }
+    val fmt = SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault())
+
+    WardenScaffold(title = "My Profile", tabScreen = true) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (s != null) {
+                item { RankHeader(s) }
+                item {
+                    SectionCard {
+                        Text("Summary", fontWeight = FontWeight.Bold)
+                        Text("Leaderboard position: #${s.position}")
+                        Text("Quiz attempts: ${s.totalAttempts}")
+                        Text("Average best score: ${s.averageBestPercent}%")
+                        Text("Perfect modules: ${s.perfectModules}")
+                        Text("Staff ID: ${s.trainee.staffId}")
+                    }
+                }
+                item {
+                    SectionCard {
+                        Text("Badges (${s.badges.size}/${Badge.entries.size})", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Badge.entries.forEach { b ->
+                            val earned = b in s.badges
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(if (earned) 1f else 0.4f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(b.emoji, style = MaterialTheme.typography.titleLarge)
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(b.title, fontWeight = FontWeight.SemiBold)
+                                    Text(b.description, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    SectionCard {
+                        Text("Rank ladder", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Rank.entries.forEach { r ->
+                            Row(Modifier.fillMaxWidth()) {
+                                Text(
+                                    (if (r == s.rank) "▶ " else "    ") + r.title,
+                                    fontWeight = if (r == s.rank) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text("${r.minPoints}+ pts")
+                            }
+                        }
+                    }
+                }
+                item {
+                    SectionCard(container = MaterialTheme.colorScheme.secondaryContainer) {
+                        Text("Certificate of Completion", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (s.allPassed) "You have passed every module. Your certificate is ready."
+                            else "Pass all ${s.totalModules} modules to unlock your certificate.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = onCertificate, enabled = s.allPassed, modifier = Modifier.fillMaxWidth()) {
+                            Text("View certificate")
+                        }
+                    }
+                }
+            }
+
+            item { Text("Attempt history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            if (attempts.isEmpty()) item { Text("No quiz attempts yet.") }
+            items(attempts, key = { it.id }) { a ->
+                SectionCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${titles[a.moduleId] ?: a.moduleId} • attempt #${a.attemptNumber}", fontWeight = FontWeight.SemiBold)
+                            Text(fmt.format(Date(a.completedAt)), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "${Scoring.percent(a.correct, a.total)}% ${if (a.passed) "PASS" else "FAIL"}",
+                                color = if (a.passed) Success else Danger, fontWeight = FontWeight.Bold
+                            )
+                            Text("${a.totalPoints} pts", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            item {
+                OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) { Text("About & scoring rules") }
+                TextButton(onClick = onSwitchTrainee, modifier = Modifier.fillMaxWidth()) { Text("Switch trainee") }
+            }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/CertificateScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.WardenScaffold
+import pg.wardenacademy.ui.theme.PngGold
+import pg.wardenacademy.ui.theme.PngRed
+import pg.wardenacademy.util.CertificatePdf
+
+@Composable
+fun CertificateScreen(vm: AppViewModel, onBack: () -> Unit) {
+    val stats by vm.currentStats.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    val s = stats
+
+    WardenScaffold(title = "Certificate", onBack = onBack) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (s == null || !s.allPassed) {
+                Text("Pass every module to unlock your certificate.")
+                return@Column
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .border(BorderStroke(6.dp, PngRed))
+                    .padding(6.dp)
+                    .border(BorderStroke(2.dp, PngGold))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("WARDEN ACADEMY PNG", color = PngRed, fontWeight = FontWeight.Bold)
+                Text("Certificate of Completion", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("This is to certify that", fontStyle = FontStyle.Italic)
+                Text(s.trainee.name, style = MaterialTheme.typography.headlineMedium, color = PngRed, fontWeight = FontWeight.Bold)
+                Text(
+                    "has completed all ${s.totalModules} modules on the functions of the Mining Warden " +
+                        "under the Mining Act 1992 (Papua New Guinea).",
+                    textAlign = TextAlign.Center
+                )
+                Text("Rank: ${s.rank.title} • ${s.totalPoints} points", fontWeight = FontWeight.SemiBold)
+            }
+            Button(
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            CertificatePdf.create(
+                                context,
+                                CertificatePdf.Details(
+                                    name = s.trainee.name,
+                                    staffId = s.trainee.staffId,
+                                    province = s.trainee.province,
+                                    rank = s.rank.title,
+                                    points = s.totalPoints,
+                                    modules = s.totalModules,
+                                    averagePercent = s.averageBestPercent
+                                )
+                            )
+                        }
+                        busy = false
+                        CertificatePdf.share(context, file)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Preparing PDF…" else "Export PDF & share") }
+        }
+    }
+}
+===== END FILE =====
+
+===== FILE: app/src/main/java/pg/wardenacademy/ui/screens/AboutScreen.kt =====
+package pg.wardenacademy.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import pg.wardenacademy.domain.Rank
+import pg.wardenacademy.domain.Scoring
+import pg.wardenacademy.ui.AppViewModel
+import pg.wardenacademy.ui.components.BulletList
+import pg.wardenacademy.ui.components.SectionCard
+import pg.wardenacademy.ui.components.WardenScaffold
+
+@Composable
+fun AboutScreen(vm: AppViewModel, onBack: () -> Unit) {
+    val maxPerModule = vm.course.modules.firstOrNull()?.let { Scoring.maxPointsFor(it.quiz.size) } ?: 0
+    WardenScaffold(title = "About", onBack = onBack) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SectionCard {
+                Text("How points work", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                BulletList(
+                    listOf(
+                        "${Scoring.POINTS_PER_CORRECT} points per correct answer",
+                        "Pass mark: ${Scoring.PASS_PERCENT}%. Passing unlocks the next module.",
+                        "+${Scoring.FIRST_ATTEMPT_PASS_BONUS} for passing on your first attempt",
+                        "+${Scoring.PERFECT_BONUS} for a perfect score",
+                        "Up to +${Scoring.MAX_SPEED_BONUS} speed bonus on a pass (more time left = more points)",
+                        "${Scoring.SECONDS_PER_QUESTION} seconds per question. When time runs out the quiz auto-submits.",
+                        "Only your BEST attempt per module counts toward the leaderboard (max $maxPerModule per module)",
+                        "Leaderboard ties are broken by modules passed, then by who got there first"
+                    )
+                )
+            }
+            SectionCard {
+                Text("Ranks", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                BulletList(Rank.entries.map { "${it.title}: ${it.minPoints}+ points" })
+            }
+            SectionCard(container = MaterialTheme.colorScheme.secondaryContainer) {
+                Text("Important", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(vm.course.disclaimer, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                "${vm.course.title} • content v${vm.course.version}",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+===== END FILE =====
+
+End of PART 3. Reply 'Ready for PART 4' and wait.

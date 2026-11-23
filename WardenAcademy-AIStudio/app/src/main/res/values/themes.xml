@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.WardenAcademy" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#8E0000</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
